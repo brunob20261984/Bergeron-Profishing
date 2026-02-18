@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bergeron ProFishing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" type="image/png" href="icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="ProFishing">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; background: #001529; }
+        #map { height: 100vh; width: 100vw; }
+        .header {
+            position: absolute; top: 10px; width: 100%; text-align: center;
+            z-index: 1000; pointer-events: none;
+        }
+        .title-box {
+            background: rgba(0, 51, 102, 0.9); color: white; border: 2px solid #ff4444;
+            padding: 8px 20px; border-radius: 25px; display: inline-block; font-weight: bold;
+        }
+        .controls {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; display: flex; gap: 15px; width: 90%; justify-content: center;
+        }
+        button { 
+            padding: 15px; font-weight: bold; border: none; flex: 1;
+            border-radius: 12px; background: #cc0000; color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title-box">🎣 BERGERON PROFISHING</div>
+</div>
+
+<div id="map"></div>
+
+<div class="controls">
+    <button onclick="getLocation()">📍 MA POSITION</button>
+    <button id="trackBtn" onclick="toggleTracking()">🛰️ TRACER TRAJET</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Focus sur le Lac Lamothe
+    const map = L.map('map').setView([48.5750, -71.1450], 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: 'Bergeron ProFishing'
+    }).addTo(map);
+
+    let marker, circle, path;
+    let trackPoints = [];
+    let isTracking = false;
+    let watchId;
+
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                if(marker) map.removeLayer(marker);
+                marker = L.marker([lat, lon]).addTo(map).bindPopup("Tu es ici !").openPopup();
+                map.setView([lat, lon], 15);
+            }, () => alert("Active le GPS sur ton tel !"));
+        }
+    }
+
+    function toggleTracking() {
+        if (!isTracking) {
+            isTracking = true;
+            trackPoints = [];
+            path = L.polyline([], {color: '#00ffff', weight: 6, opacity: 0.8}).addTo(map);
+            document.getElementById('trackBtn').style.background = "#333";
+            document.getElementById('trackBtn').innerText = "⏹️ ARRÊTER";
+            
+            watchId = navigator.geolocation.watchPosition((pos) => {
+                const p = [pos.coords.latitude, pos.coords.longitude];
+                trackPoints.push(p);
+                path.setLatLngs(trackPoints);
+            }, null, { enableHighAccuracy: true });
+        } else {
+            isTracking = false;
+            navigator.geolocation.clearWatch(watchId);
+            document.getElementById('trackBtn').style.background = "#cc0000";
+            document.getElementById('trackBtn').innerText = "🛰️ TRACER TRAJET";
+        }
+    }
+</script>
+</body>
+</html>
