@@ -12,56 +12,28 @@
     <style>
         body { margin: 0; padding: 0; font-family: sans-serif; background: #000; overflow: hidden; color: white; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
-        
-        .dashboard {
-            position: absolute; top: 10px; left: 10px; right: 10px;
-            z-index: 1000; display: flex; gap: 10px;
-        }
-        .info-box {
-            background: rgba(0, 20, 40, 0.9); border: 2px solid #cc0000;
-            padding: 10px; border-radius: 15px; text-align: center; flex: 1;
-        }
+        .dashboard { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000; display: flex; gap: 10px; }
+        .info-box { background: rgba(0, 20, 40, 0.9); border: 2px solid #cc0000; padding: 10px; border-radius: 15px; text-align: center; flex: 1; }
         .speed-val { font-size: 28px; font-weight: bold; color: #00ff00; }
         .label { font-size: 10px; text-transform: uppercase; display: block; color: #aaa; margin-bottom: 2px; }
         .weather-val { font-size: 16px; font-weight: bold; }
-
-        .controls {
-            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%;
-        }
-        button { 
-            padding: 18px 5px; font-weight: bold; border: none;
-            border-radius: 15px; color: white; font-size: 12px;
-            box-shadow: 0 6px 10px rgba(0,0,0,0.5); text-transform: uppercase;
-        }
+        .controls { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 1000; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%; }
+        button { padding: 18px 5px; font-weight: bold; border: none; border-radius: 15px; color: white; font-size: 12px; box-shadow: 0 6px 10px rgba(0,0,0,0.5); text-transform: uppercase; }
         .btn-pos { background: #2ecc71; }
         .btn-spot { background: #e74c3c; }
         .btn-depth { background: #3498db; }
-        .btn-sat { background: #2c3e50; border: 1px solid #fff; } /* Bouton Satellite */
+        .btn-sat { background: #2c3e50; border: 1px solid #fff; }
         .btn-track { background: #f39c12; grid-column: span 2; }
-
-        #depthPicker {
-            position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%);
-            z-index: 2000; background: rgba(0,0,0,0.95); padding: 15px;
-            border-radius: 20px; border: 1px solid #3498db; display: none; 
-            grid-template-columns: repeat(4, 1fr); gap: 10px; width: 85%;
-        }
+        #depthPicker { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); z-index: 2000; background: rgba(0,0,0,0.95); padding: 15px; border-radius: 20px; border: 1px solid #3498db; display: none; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 85%; }
         .depth-choice { background: #3498db; padding: 15px; border-radius: 10px; font-size: 16px; }
+        .delete-btn { color: #ff4444; font-weight: bold; text-decoration: none; display: block; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 5px; }
     </style>
 </head>
 <body>
 
     <div class="dashboard">
-        <div class="info-box">
-            <span class="label">Vitesse Traîne</span>
-            <div class="speed-val" id="speed">0.0</div>
-            <span style="font-size:11px">km/h</span>
-        </div>
-        <div class="info-box">
-            <span class="label">Météo Lac</span>
-            <div id="wind" class="weather-val">--</div>
-            <div id="temp" style="font-size:12px; color: #ffcc00;">--</div>
-        </div>
+        <div class="info-box"><span class="label">Vitesse</span><div class="speed-val" id="speed">0.0</div><span style="font-size:11px">km/h</span></div>
+        <div class="info-box"><span class="label">Météo Lac</span><div id="wind" class="weather-val">--</div><div id="temp" style="font-size:12px; color: #ffcc00;">--</div></div>
     </div>
 
     <div id="map"></div>
@@ -87,33 +59,47 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Couches de cartes
         const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
         const satMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-
         const map = L.map('map', { zoomControl: false, layers: [streetMap] }).setView([48.575, -71.145], 13);
 
         let marker, path, trackPoints = [], isTracking = false, watchId, isSatellite = false;
         let savedData = JSON.parse(localStorage.getItem('fishingData')) || [];
-        savedData.forEach(item => drawPoint(item));
+        
+        // Afficher les points au chargement
+        refreshMap();
 
         function toggleSatellite() {
-            if (isSatellite) {
-                map.removeLayer(satMap); map.addLayer(streetMap);
-            } else {
-                map.removeLayer(streetMap); map.addLayer(satMap);
-            }
+            if (isSatellite) { map.removeLayer(satMap); map.addLayer(streetMap); }
+            else { map.removeLayer(streetMap); map.addLayer(satMap); }
             isSatellite = !isSatellite;
         }
 
-        function drawPoint(item) {
+        function drawPoint(item, index) {
+            let m;
+            const deleteHtml = `<br><a href="#" class="delete-btn" onclick="deletePoint(${index})">❌ SUPPRIMER</a>`;
+            
             if (item.type === 'spot') {
-                L.marker([item.lat, item.lng]).addTo(map).bindPopup(`<b>🔥 SPOT</b><br>${item.depth}`);
+                m = L.marker([item.lat, item.lng]).addTo(map)
+                     .bindPopup(`<b>🔥 SPOT</b><br>${item.depth}${deleteHtml}`);
             } else {
-                L.circleMarker([item.lat, item.lng], {
-                    radius: 8, color: '#3498db', fillColor: '#fff', fillOpacity: 0.9
-                }).addTo(map).bindTooltip(`${item.depth}`, { permanent: true, direction: 'center', className: 'depth-label' });
+                m = L.circleMarker([item.lat, item.lng], { radius: 8, color: '#3498db', fillColor: '#fff', fillOpacity: 0.9 }).addTo(map)
+                     .bindTooltip(`${item.depth}`, { permanent: true, direction: 'center', className: 'depth-label' })
+                     .bindPopup(`Profondeur: ${item.depth}'${deleteHtml}`);
             }
+        }
+
+        function deletePoint(index) {
+            if(confirm("Effacer ce point ?")) {
+                savedData.splice(index, 1);
+                localStorage.setItem('fishingData', JSON.stringify(savedData));
+                refreshMap();
+            }
+        }
+
+        function refreshMap() {
+            map.eachLayer((layer) => { if (layer instanceof L.Marker || layer instanceof L.CircleMarker) { if(layer !== marker) map.removeLayer(layer); } });
+            savedData.forEach((item, index) => drawPoint(item, index));
         }
 
         function getLocation() {
@@ -137,7 +123,7 @@
                 const data = await res.json();
                 document.getElementById('wind').innerText = data.current_weather.windspeed + " km/h";
                 document.getElementById('temp').innerText = data.current_weather.temperature + " °C";
-            } catch (e) { console.log("Météo non dispo"); }
+            } catch (e) { }
         }
 
         function showDepthPicker() { document.getElementById('depthPicker').style.display = 'grid'; }
@@ -148,7 +134,7 @@
                 const newItem = { type: 'depth', lat: pos.coords.latitude, lng: pos.coords.longitude, depth: val, date: new Date().toLocaleDateString() };
                 savedData.push(newItem);
                 localStorage.setItem('fishingData', JSON.stringify(savedData));
-                drawPoint(newItem);
+                refreshMap();
                 closePicker();
             }, null, {enableHighAccuracy: true});
         }
@@ -160,7 +146,7 @@
                     const newItem = { type, lat: pos.coords.latitude, lng: pos.coords.longitude, depth: val, date: new Date().toLocaleDateString() };
                     savedData.push(newItem);
                     localStorage.setItem('fishingData', JSON.stringify(savedData));
-                    drawPoint(newItem);
+                    refreshMap();
                 }
             }, null, {enableHighAccuracy: true});
         }
