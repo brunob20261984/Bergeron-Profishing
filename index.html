@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Bergeron ProFishing</title>
+    <title>Bergeron ProFishing Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="apple-touch-icon" href="Icon.png">
     <link rel="icon" type="image/png" href="Icon.png">
@@ -10,39 +10,60 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: sans-serif; background: #000; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; }
-        .title-box {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(0, 51, 102, 0.9); color: white;
-            padding: 8px 20px; border-radius: 20px; border: 2px solid red; font-weight: bold; font-size: 14px;
+        body { margin: 0; padding: 0; font-family: sans-serif; background: #000; overflow: hidden; color: white; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        
+        .dashboard {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            z-index: 1000; display: flex; gap: 10px;
         }
+        .info-box {
+            background: rgba(0, 20, 40, 0.9); border: 2px solid #cc0000;
+            padding: 10px; border-radius: 15px; text-align: center; flex: 1;
+        }
+        .speed-val { font-size: 28px; font-weight: bold; color: #00ff00; }
+        .label { font-size: 10px; text-transform: uppercase; display: block; color: #aaa; margin-bottom: 2px; }
+        .weather-val { font-size: 16px; font-weight: bold; }
+
         .controls {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 95%;
+            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%;
         }
         button { 
-            padding: 15px; font-weight: bold; border: none;
-            border-radius: 10px; color: white; font-size: 11px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-transform: uppercase;
+            padding: 18px 5px; font-weight: bold; border: none;
+            border-radius: 15px; color: white; font-size: 12px;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.5); text-transform: uppercase;
         }
         .btn-pos { background: #2ecc71; }
         .btn-spot { background: #e74c3c; }
         .btn-depth { background: #3498db; }
-        .btn-track { background: #f39c12; }
-        .btn-track.active { background: #333; }
+        .btn-sat { background: #2c3e50; border: 1px solid #fff; } /* Bouton Satellite */
+        .btn-track { background: #f39c12; grid-column: span 2; }
 
-        /* Panneau de sélection de profondeur rapide */
         #depthPicker {
-            position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%);
-            z-index: 2000; background: rgba(0,0,0,0.8); padding: 10px;
-            border-radius: 15px; display: none; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 90%;
+            position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; background: rgba(0,0,0,0.95); padding: 15px;
+            border-radius: 20px; border: 1px solid #3498db; display: none; 
+            grid-template-columns: repeat(4, 1fr); gap: 10px; width: 85%;
         }
-        .depth-choice { background: #3498db; padding: 10px; font-size: 14px; border-radius: 5px; }
+        .depth-choice { background: #3498db; padding: 15px; border-radius: 10px; font-size: 16px; }
     </style>
 </head>
 <body>
-    <div class="title-box">🎣 BERGERON PROFISHING</div>
+
+    <div class="dashboard">
+        <div class="info-box">
+            <span class="label">Vitesse Traîne</span>
+            <div class="speed-val" id="speed">0.0</div>
+            <span style="font-size:11px">km/h</span>
+        </div>
+        <div class="info-box">
+            <span class="label">Météo Lac</span>
+            <div id="wind" class="weather-val">--</div>
+            <div id="temp" style="font-size:12px; color: #ffcc00;">--</div>
+        </div>
+    </div>
+
     <div id="map"></div>
 
     <div id="depthPicker">
@@ -57,34 +78,71 @@
     </div>
 
     <div class="controls">
-        <button class="btn-pos" onclick="getLocation()">📍 MA POSITION</button>
-        <button class="btn-spot" onclick="addData('spot')">⚓ MARQUER SPOT</button>
+        <button class="btn-pos" onclick="getLocation()">📍 POSITION</button>
+        <button class="btn-spot" onclick="addData('spot')">⚓ SPOT</button>
         <button class="btn-depth" onclick="showDepthPicker()">🌊 PROFONDEUR</button>
-        <button id="trackBtn" class="btn-track" onclick="toggleTracking()">🛰️ TRACER</button>
+        <button class="btn-sat" onclick="toggleSatellite()">🌍 SATELLITE</button>
+        <button id="trackBtn" class="btn-track" onclick="toggleTracking()">🛰️ TRACER MON TRAJET</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([48.575, -71.145], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        // Couches de cartes
+        const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        const satMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
-        let marker, path, trackPoints = [], isTracking = false, watchId;
+        const map = L.map('map', { zoomControl: false, layers: [streetMap] }).setView([48.575, -71.145], 13);
+
+        let marker, path, trackPoints = [], isTracking = false, watchId, isSatellite = false;
         let savedData = JSON.parse(localStorage.getItem('fishingData')) || [];
         savedData.forEach(item => drawPoint(item));
+
+        function toggleSatellite() {
+            if (isSatellite) {
+                map.removeLayer(satMap); map.addLayer(streetMap);
+            } else {
+                map.removeLayer(streetMap); map.addLayer(satMap);
+            }
+            isSatellite = !isSatellite;
+        }
 
         function drawPoint(item) {
             if (item.type === 'spot') {
                 L.marker([item.lat, item.lng]).addTo(map).bindPopup(`<b>🔥 SPOT</b><br>${item.depth}`);
             } else {
                 L.circleMarker([item.lat, item.lng], {
-                    radius: 8, color: '#3498db', fillColor: '#fff', fillOpacity: 0.8
+                    radius: 8, color: '#3498db', fillColor: '#fff', fillOpacity: 0.9
                 }).addTo(map).bindTooltip(`${item.depth}`, { permanent: true, direction: 'center', className: 'depth-label' });
             }
         }
 
+        function getLocation() {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const p = [pos.coords.latitude, pos.coords.longitude];
+                if(marker) map.removeLayer(marker);
+                marker = L.circleMarker(p, { radius: 10, color: 'white', fillColor: '#2ecc71', fillOpacity: 1 }).addTo(map);
+                map.setView(p, 16);
+                updateWeather(pos.coords.latitude, pos.coords.longitude);
+            }, null, {enableHighAccuracy: true});
+        }
+
+        navigator.geolocation.watchPosition((pos) => {
+            const speedKmH = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(1) : "0.0";
+            document.getElementById('speed').innerText = speedKmH;
+        }, null, {enableHighAccuracy: true});
+
+        async function updateWeather(lat, lon) {
+            try {
+                const res = await fetch(`https://api.openmeteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+                const data = await res.json();
+                document.getElementById('wind').innerText = data.current_weather.windspeed + " km/h";
+                document.getElementById('temp').innerText = data.current_weather.temperature + " °C";
+            } catch (e) { console.log("Météo non dispo"); }
+        }
+
         function showDepthPicker() { document.getElementById('depthPicker').style.display = 'grid'; }
         function closePicker() { document.getElementById('depthPicker').style.display = 'none'; }
-
+        
         function saveQuickDepth(val) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 const newItem = { type: 'depth', lat: pos.coords.latitude, lng: pos.coords.longitude, depth: val, date: new Date().toLocaleDateString() };
@@ -97,7 +155,7 @@
 
         function addData(type) {
             navigator.geolocation.getCurrentPosition((pos) => {
-                const val = prompt("Note ou Profondeur :");
+                const val = prompt(type === 'spot' ? "Note sur le spot :" : "Profondeur :");
                 if (val) {
                     const newItem = { type, lat: pos.coords.latitude, lng: pos.coords.longitude, depth: val, date: new Date().toLocaleDateString() };
                     savedData.push(newItem);
@@ -107,32 +165,23 @@
             }, null, {enableHighAccuracy: true});
         }
 
-        function getLocation() {
-            navigator.geolocation.getCurrentPosition((pos) => {
-                const p = [pos.coords.latitude, pos.coords.longitude];
-                if(marker) map.removeLayer(marker);
-                marker = L.circleMarker(p, { radius: 10, color: 'white', fillColor: '#2ecc71', fillOpacity: 1 }).addTo(map);
-                map.setView(p, 16);
-            }, null, {enableHighAccuracy: true});
-        }
-
         function toggleTracking() {
             const btn = document.getElementById('trackBtn');
             if (!isTracking) {
-                isTracking = true; btn.classList.add('active'); btn.innerText = "⏹️ STOP";
+                isTracking = true; btn.style.background = "#333"; btn.innerText = "⏹️ ARRÊTER LE TRAJET";
                 path = L.polyline([], {color: '#f39c12', weight: 4}).addTo(map);
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const p = [pos.coords.latitude, pos.coords.longitude];
                     trackPoints.push(p); path.setLatLngs(trackPoints);
                 }, null, { enableHighAccuracy: true });
             } else {
-                isTracking = false; btn.classList.remove('active'); btn.innerText = "🛰️ TRACER";
+                isTracking = false; btn.style.background = "#f39c12"; btn.innerText = "🛰️ TRACER MON TRAJET";
                 navigator.geolocation.clearWatch(watchId);
             }
         }
     </script>
     <style>
-        .depth-label { background: transparent; border: none; box-shadow: none; font-weight: bold; color: #000; font-size: 9px; pointer-events: none; }
+        .depth-label { background: transparent; border: none; box-shadow: none; font-weight: bold; color: #000; font-size: 11px; pointer-events: none; }
     </style>
 </body>
 </html>
